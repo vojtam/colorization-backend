@@ -2,16 +2,16 @@
 # This file should be used for performing inference on a network
 # Usage: inference.py <dataset_path> <model_path>
 
-from argparse import ArgumentParser
+import math
 from pathlib import Path
 
 import albumentations as A
 import numpy as np
 import torch
-from network import Generator
 from PIL import Image
-from torchvision.transforms.functional import pil_to_tensor
-from tqdm import tqdm
+from torchvision.transforms.functional import pad, pil_to_tensor
+
+from network import Generator
 
 
 def get_image_paths(dataset_path: Path, n: int | None = None):
@@ -32,55 +32,6 @@ def get_val_transforms():
     )
 
 
-# declaration for this function should not be changed
-@torch.no_grad()  # do not calculate the gradients
-def inference(dataset_path: Path, model_path: Path) -> None:
-    """Performs inference on the given dataset using the specified model.
-
-    Args:
-        dataset_path: Path to the dataset. The function processes all PNG images in
-            this directory (optionally recursively in its subdirectories).
-        model_path: Path to the model file.
-
-    Saves:
-        predictions to 'output_predictions' folder. The files can be saved in a flat
-            structure with the same name as the input file.
-    """
-    # Check for available GPU
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print("Computing with {}!".format(device))
-
-    # loading the model
-    model = Generator().to(device)
-    state_dict = torch.load(model_path)
-    model.load_state_dict(state_dict)
-    model.eval()
-    # # From the pix2pix paper:
-    # "At inference time, we run the generator net in exactly the same manner as during the training phase.
-    # This differs from the usual protocol in that we apply dropout at test time"
-
-    # The outputs seem more colorful when I run inference in the training mode but also some weird artifacts appear (weird blue blobs - perhaps too aggressive dropout?)
-
-    img_paths = get_image_paths(dataset_path, 30)
-
-    for input_img_path in tqdm(img_paths):
-        input_img = pil_to_tensor(Image.open(input_img_path).convert("RGB")) / 255
-
-        if input_img.shape[0] == 1:
-            input_img = input_img.repeat(3, 1, 1)
-
-        generated_image = (
-            model(input_img.unsqueeze(0).to(device))[0].permute((1, 2, 0)).cpu().numpy()
-        )
-        generated_image = (generated_image * 255).astype(np.uint8)
-        return Image.fromarray(generated_image)
-        # dir_path = Path("output_predictions")
-        # dir_path.mkdir(exist_ok=True)
-        # path_to_save = dir_path / input_img_path.name
-        # print(f"Saving to: {path_to_save}")
-        # Image.fromarray(generated_image).save(path_to_save)
-
-
 def inference_single(
     model: Generator, input_img: Image.Image, device: torch.device
 ) -> Image.Image:
@@ -98,13 +49,86 @@ def inference_single(
     return Image.fromarray(generated_image)
 
 
-def main() -> None:
-    parser = ArgumentParser(description="Inference script for a neural network.")
-    parser.add_argument("dataset_path", type=Path, help="Path to the dataset")
-    parser.add_argument("model_path", type=Path, help="Path to the model weights")
-    args = parser.parse_args()
-    inference(args.dataset_path, args.model_path)
+def get_pyramid_blend_mask(tile_h, tile_w):
+    """Generates a 2D pyramid blend mask."""
+    ramp_y = 1 - torch.abs(torch.linspace(-1, 1, tile_h))
+    ramp_x = 1 - torch.abs(torch.linspace(-1, 1, tile_w))
+
+    mask_2d = torch.outer(ramp_y, ramp_x)
+
+    return mask_2d.unsqueeze(0)
 
 
-if __name__ == "__main__":
-    main()
+def inference_tiled(
+    model: Generator,
+    input_img: Image.Image,
+    device: torch.device,
+    tile_h: int = 512,
+    tile_w: int = 384,
+    overlap: int = 128,
+) -> Image.Image:
+    input_img_tensor = pil_to_tensor(input_img) / 255
+
+    img_h, img_w = input_img_tensor.shape[1], input_img_tensor.shape[2]
+    padded_w = (tile_w - overlap) * math.ceil((img_w / (tile_w - overlap)))
+    padded_h = (tile_h - overlap) * math.ceil((img_h / (tile_h - overlap)))
+    padded = pad(
+        input_img,
+        ((padded_w - img_w) // 2, (padded_h - img_h) // 2),
+        fill=0,
+        padding_mode="constant",
+    )
+
+    # 3 x H x W
+    output_canvas = torch.zeros(
+        (3, padded_h, padded_w), dtype=torch.float64, device=input_img_tensor.device
+    )
+
+    # 1 x H x W
+    output_canvas_weight = torch.zeros(
+        (1, padded_h, padded_w), dtype=torch.float64, device=input_img_tensor.device
+    )
+
+    blend_mask = get_pyramid_blend_mask(tile_h, tile_w).to(device)
+
+    for i in range(0, padded_h, tile_h - overlap):
+        for j in range(0, padded_w, tile_w - overlap):
+            crop_box = (j, i, min(j + tile_w, padded_w), min(i + tile_h, padded_h))
+            tile = padded.crop(crop_box)
+            original_tile_w, original_tile_h = tile.size
+
+            padding = (0, 0, tile_w - original_tile_w, tile_h - original_tile_h)
+            padded_tile = pad(tile, padding, fill=0, padding_mode="constant")
+            # C x H x W
+            tile_tensor = pil_to_tensor(padded_tile).to(device) / 255
+            if tile_tensor.shape[0] == 1:
+                tile_tensor = tile_tensor.repeat(3, 1, 1)
+
+            generated_tile = (
+                model(tile_tensor.unsqueeze(0).to(device))[0].detach().cpu().numpy()
+            )
+
+            cropped_mask = blend_mask[:, :original_tile_h, :original_tile_w].numpy()
+            generated_tile = generated_tile[:, :original_tile_h, :original_tile_w]
+            _, generated_h, generated_w = generated_tile.shape
+            output_canvas[:, i : i + generated_h, j : j + generated_w] += (
+                generated_tile * cropped_mask
+            )
+            output_canvas_weight[:, i : i + generated_h, j : j + generated_w] += (
+                cropped_mask
+            )
+
+    # Normalize the output canvas by the weights
+    output_canvas /= torch.clamp(output_canvas_weight, min=1e-6)
+
+    out = (output_canvas * 255).numpy().astype(np.uint8)
+
+    out_img = Image.fromarray(np.transpose(out, (1, 2, 0)), mode="RGB").crop(
+        (
+            (padded_w - img_w) // 2,
+            (padded_h - img_h) // 2,
+            (padded_w + img_w) // 2,
+            (padded_h + img_h) // 2,
+        )
+    )
+    return out_img

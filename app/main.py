@@ -4,9 +4,10 @@ from pathlib import Path
 import torch
 from fastapi import FastAPI, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from inference import inference_single
-from network import Generator
 from PIL import Image
+
+from inference import inference_tiled
+from network import Generator
 
 app = FastAPI()
 
@@ -47,7 +48,7 @@ async def colorize_image(image_file: UploadFile):
     print("Received file:", image_file.filename)
     input_image_bytes = await image_file.read()
     input_image = Image.open(io.BytesIO(input_image_bytes)).convert("RGB")
-    output_image = inference_single(model, input_image, device)
+    output_image = inference_tiled(model, input_image, device)
 
     img_byte_arr = io.BytesIO()
 
