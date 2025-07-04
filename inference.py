@@ -9,6 +9,8 @@ import albumentations as A
 import numpy as np
 import torch
 from PIL import Image
+from skimage.color import lab2rgb, rgb2lab
+from torch import Tensor, from_numpy
 from torchvision.transforms.functional import pad, pil_to_tensor
 
 from network import Generator
@@ -18,6 +20,14 @@ def get_image_paths(dataset_path: Path, n: int | None = None):
     if n is not None:
         return list(dataset_path.rglob("*.png"))[:n]
     return list(dataset_path.rglob("*.png"))
+
+
+def rgb_to_lab(img_rgb: Tensor):
+    img_lab = rgb2lab(img_rgb.permute(1, 2, 0).numpy()).astype("float32")
+    img_lab = from_numpy(img_lab).permute(2, 0, 1)
+    L = img_lab[[0], ...] / 50.0 - 1.0  # Between -1 and 1
+    ab = img_lab[[1, 2], ...] / 110.0  # Between -1 and 1
+    return L, ab
 
 
 def get_val_transforms():
@@ -57,6 +67,16 @@ def get_pyramid_blend_mask(tile_h, tile_w):
     mask_2d = torch.outer(ramp_y, ramp_x)
 
     return mask_2d.unsqueeze(0)
+
+
+def lab_to_rgb_np(L: Tensor, ab: Tensor) -> np.array:
+    L = (
+        L + 1
+    ) * 50.0  # reverse the transformation to range -1 and 1 done in dataset __getitem__
+    ab = ab * 110.0
+    lab = torch.cat((L, ab), dim=0).permute(1, 2, 0).cpu().detach().numpy()
+    rgb_np = lab2rgb(lab)
+    return rgb_np
 
 
 def inference_tiled(
