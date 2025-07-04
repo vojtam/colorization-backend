@@ -67,7 +67,7 @@ This project is split into four repositories, each with a specific responsibilit
 | Repository | Description | Link |
 | :--- | :--- | :---: |
 | 🎨 **Frontend** | SvelteKit user interface. | [image-colorizer-frontend](https://github.com/vojtam/colorization-frontend) |
-| 🚀 **Backend** | FastAPI application handling API requests and task queuing. | **(This Repository)** |
+| 🚀 **Backend** | FastAPI application handling API requests. | **(This Repository)** |
 | 🧠 **Model Training**| Scripts, notebooks, and code for training the cGAN model. | [image-colorizer-training](https://github.com/vojtam/cGAN-image-colorization) |
 | ⚙️ **Infrastructure**| Kubernetes manifests, Helm charts, and CI/CD workflows. | [image-colorizer-infra](https://github.com/vojtam/colorization-helm-manifests) |
 
