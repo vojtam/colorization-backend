@@ -39,8 +39,6 @@ The system is designed as a set of decoupled microservices that communicate over
 4. The resulting **colorized** image is sent back to the frontend.
 
 
-### conditional GAN Architecture
-![Conditional GAN Architecture](final_model_architecture.png)
 
 
 ## 🛠️ Tech Stack
@@ -54,12 +52,15 @@ The system is designed as a set of decoupled microservices that communicate over
 | **CI/CD** | GitHub Actions |
 
 ## 🧠 The Machine Learning Model
-The colorization model is a Conditional GAN based on the Pix2Pix architecture.
+
+I was following the protocol proposed in the [Pix2Pix paper](https://arxiv.org/abs/1611.07004) for training the Conditional GAN model. The architecture consists of a U-Net generator and a PatchGAN discriminator.
 
 - **Generator:** U-Net architecture with skip connections tasked with generating detailed images.
 - **Discriminator:** PatchGAN classifier that determines if `(input, output)` pairs are real or fake.
 - **Dataset:** Trained on a 10,000-image subset of the COCO dataset.
 - **[https://github.com/vojtam/cGAN-image-colorization](#ML-project-repository)**
+
+![Conditional GAN Architecture](final_model_architecture.png)
 
 ## 📂 Project Repositories
 This project is split into four repositories, each with a specific responsibility:
