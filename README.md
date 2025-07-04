@@ -6,9 +6,9 @@
 
 ---
 
-| **Live Demo** | **Architecture Overview** |
-| :---: | :---: |
-| [**https://colorization.dyn.cloud.e-infra.cz/**](https://colorization.dyn.cloud.e-infra.cz/) | [View Architecture Diagram](#architecture) |
+| **Live Demo** |
+| :---:|
+| [**https://colorization.dyn.cloud.e-infra.cz/**](https://colorization.dyn.cloud.e-infra.cz/) |
 
 
 ## 📖 Table of Contents
@@ -32,9 +32,6 @@ I wanted this project to be complete, end-to-end process which goes beyond just 
 
 ## 🏗️ Architecture
 The system is designed as a set of decoupled microservices that communicate over HTTP and a message queue for robust, asynchronous processing.
-
-![Architecture Diagram](https://your-link-to-architecture-diagram.png)
-*(**Crucial:** Create a diagram using a tool like draw.io or Excalidraw. This is the single most effective way to communicate your system's design.)*
 
 1.  **User** uploads an image via the **SvelteKit Frontend**.
 2.  The **Frontend** sends the image to the **FastAPI Backend** API endpoint.
@@ -62,16 +59,15 @@ The colorization model is a Conditional GAN based on the Pix2Pix architecture.
 - **Generator:** U-Net architecture with skip connections tasked with generating detailed images.
 - **Discriminator:** PatchGAN classifier that determines if `(input, output)` pairs are real or fake.
 - **Dataset:** Trained on a 10,000-image subset of the COCO dataset.
-- **Evaluation:** Achieved a PSNR of XX.XX and an SSIM of Y.YY on a held-out test set.
-- **[Link to the model training repository for full details & code](#project-repositories)**
+- **[https://github.com/vojtam/cGAN-image-colorization](#ML-project-repository)**
 
 ## 📂 Project Repositories
 This project is split into four repositories, each with a specific responsibility:
 
 | Repository | Description | Link |
 | :--- | :--- | :---: |
-| 🎨 **Frontend** | SvelteKit user interface. | [image-colorizer-frontend](https://github.com/your-username/image-colorizer-frontend) |
+| 🎨 **Frontend** | SvelteKit user interface. | [image-colorizer-frontend](https://github.com/vojtam/colorization-frontend) |
 | 🚀 **Backend** | FastAPI application handling API requests and task queuing. | **(This Repository)** |
-| 🧠 **Model Training**| Scripts, notebooks, and code for training the cGAN model. | [image-colorizer-training](https://github.com/your-username/image-colorizer-training) |
-| ⚙️ **Infrastructure**| Kubernetes manifests, Helm charts, and CI/CD workflows. | [image-colorizer-infra](https://github.com/your-username/image-colorizer-infra) |
+| 🧠 **Model Training**| Scripts, notebooks, and code for training the cGAN model. | [image-colorizer-training](https://github.com/vojtam/cGAN-image-colorization) |
+| ⚙️ **Infrastructure**| Kubernetes manifests, Helm charts, and CI/CD workflows. | [image-colorizer-infra](https://github.com/vojtam/colorization-helm-manifests) |
 
